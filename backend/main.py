@@ -460,24 +460,27 @@ async def get_logs(service_name: str, lines: int = 100):
 # ============================================
 
 # 挂载前端静态文件
-frontend_path = Path(__file__).parent.parent / "frontend" / "dist"
-if frontend_path.exists():
-    app.mount("/assets", StaticFiles(directory=frontend_path / "assets"), name="assets")
+frontend_path = Path(__file__).parent.parent / "frontend"
+index_file = frontend_path / "index.html"
+
+@app.get("/")
+async def serve_frontend():
+    if index_file.exists():
+        return FileResponse(index_file)
+    return {"message": "FRP Panel API", "docs": "/api/docs"}
+
+@app.get("/{full_path:path}")
+async def serve_frontend_routes(full_path: str):
+    # API 路由不处理
+    if full_path.startswith("api/"):
+        raise HTTPException(status_code=404)
     
-    @app.get("/")
-    async def serve_frontend():
-        return FileResponse(frontend_path / "index.html")
-    
-    @app.get("/{full_path:path}")
-    async def serve_frontend_routes(full_path: str):
-        # API 路由不处理
-        if full_path.startswith("api/"):
-            raise HTTPException(status_code=404)
-        
-        file_path = frontend_path / full_path
-        if file_path.exists() and file_path.is_file():
-            return FileResponse(file_path)
-        return FileResponse(frontend_path / "index.html")
+    file_path = frontend_path / full_path
+    if file_path.exists() and file_path.is_file():
+        return FileResponse(file_path)
+    if index_file.exists():
+        return FileResponse(index_file)
+    raise HTTPException(status_code=404)
 
 # ============================================
 # 启动

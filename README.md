@@ -1,7 +1,7 @@
 # FRP Panel - 一个轻量级的 FRP 内网穿透管理面板
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/ychenfen/frp-panel/main/assets/logo.png" alt="FRP Panel Logo" width="150"/>
+  <img src="./assets/dashboard.png" alt="FRP Panel Dashboard" width="800"/>
 </p>
 
 <h3 align="center">FRP Panel</h3>
@@ -44,15 +44,11 @@
 
 ## 📸 界面截图
 
-*(此处将放置项目截图)*
+<p align="center">
+  <img src="./assets/dashboard.png" alt="FRP Panel 仪表盘" width="800"/>
+</p>
 
-| 仪表盘 | 代理管理 |
-| :---: | :---: |
-| `[dashboard.png]` | `[proxies.png]` |
-
-| 服务端配置 | 日志查看 |
-| :---: | :---: |
-| `[server-config.png]` | `[logs.png]` |
+<p align="center"><em>FRP Panel 仪表盘 - 深色主题，现代化设计</em></p>
 
 ## ⚡ 快速开始
 
@@ -136,6 +132,7 @@
 
 ```
 frp-panel/
+├── assets/               # 项目截图和资源文件
 ├── backend/              # FastAPI 后端代码
 │   ├── main.py
 │   └── requirements.txt
