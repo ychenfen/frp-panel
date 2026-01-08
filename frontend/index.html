@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FRP Panel - 内网穿透管理面板</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        [v-cloak] { display: none; }
+        .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
+        .fade-enter-from, .fade-leave-to { opacity: 0; }
+        .slide-enter-active, .slide-leave-active { transition: all 0.3s ease; }
+        .slide-enter-from, .slide-leave-to { transform: translateX(20px); opacity: 0; }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen">
+    <div id="app" v-cloak>
+        <!-- 导航栏 -->
+        <nav class="bg-gray-800 border-b border-gray-700 px-6 py-4">
+            <div class="flex items-center justify-between max-w-7xl mx-auto">
+                <div class="flex items-center space-x-3">
+                    <i class="fas fa-network-wired text-2xl text-blue-500"></i>
+                    <h1 class="text-xl font-bold">FRP Panel</h1>
+                    <span class="text-xs bg-blue-600 px-2 py-1 rounded">v1.0</span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <a href="/api/docs" target="_blank" class="text-gray-400 hover:text-white transition">
+                        <i class="fas fa-book mr-1"></i> API 文档
+                    </a>
+                    <a href="https://github.com/ychenfen/frp-panel" target="_blank" class="text-gray-400 hover:text-white transition">
+                        <i class="fab fa-github mr-1"></i> GitHub
+                    </a>
+                </div>
+            </div>
+        </nav>
+
+        <div class="max-w-7xl mx-auto px-6 py-8">
+            <!-- 状态卡片 -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <!-- FRPS 状态 -->
+                <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-gray-400 text-sm font-medium">FRP 服务端</h3>
+                        <span :class="status.frps?.running ? 'bg-green-500' : 'bg-red-500'" 
+                              class="w-3 h-3 rounded-full"></span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-2xl font-bold" :class="status.frps?.running ? 'text-green-400' : 'text-red-400'">
+                            {{ status.frps?.running ? '运行中' : '已停止' }}
+                        </span>
+                        <div class="space-x-2">
+                            <button @click="controlService('frps', 'start')" 
+                                    :disabled="status.frps?.running"
+                                    class="px-3 py-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm transition">
+                                <i class="fas fa-play"></i>
+                            </button>
+                            <button @click="controlService('frps', 'stop')" 
+                                    :disabled="!status.frps?.running"
+                                    class="px-3 py-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm transition">
+                                <i class="fas fa-stop"></i>
+                            </button>
+                            <button @click="controlService('frps', 'restart')" 
+                                    class="px-3 py-1 bg-yellow-600 hover:bg-yellow-700 rounded text-sm transition">
+                                <i class="fas fa-redo"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <p class="text-gray-500 text-xs mt-2" v-if="status.frps?.pid">
+                        PID: {{ status.frps.pid }}
+                    </p>
+                </div>
+
+                <!-- FRPC 状态 -->
+                <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-gray-400 text-sm font-medium">FRP 客户端</h3>
+                        <span :class="status.frpc?.running ? 'bg-green-500' : 'bg-red-500'" 
+                              class="w-3 h-3 rounded-full"></span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-2xl font-bold" :class="status.frpc?.running ? 'text-green-400' : 'text-red-400'">
+                            {{ status.frpc?.running ? '运行中' : '已停止' }}
+                        </span>
+                        <div class="space-x-2">
+                            <button @click="controlService('frpc', 'start')" 
+                                    :disabled="status.frpc?.running"
+                                    class="px-3 py-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm transition">
+                                <i class="fas fa-play"></i>
+                            </button>
+                            <button @click="controlService('frpc', 'stop')" 
+                                    :disabled="!status.frpc?.running"
+                                    class="px-3 py-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm transition">
+                                <i class="fas fa-stop"></i>
+                            </button>
+                            <button @click="controlService('frpc', 'restart')" 
+                                    class="px-3 py-1 bg-yellow-600 hover:bg-yellow-700 rounded text-sm transition">
+                                <i class="fas fa-redo"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <p class="text-gray-500 text-xs mt-2" v-if="status.frpc?.pid">
+                        PID: {{ status.frpc.pid }}
+                    </p>
+                </div>
+
+                <!-- 代理数量 -->
+                <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-gray-400 text-sm font-medium">代理数量</h3>
+                        <i class="fas fa-exchange-alt text-blue-500"></i>
+                    </div>
+                    <span class="text-3xl font-bold text-blue-400">{{ proxies.length }}</span>
+                    <p class="text-gray-500 text-xs mt-2">已配置的代理规则</p>
+                </div>
+
+                <!-- 配置状态 -->
+                <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-gray-400 text-sm font-medium">配置文件</h3>
+                        <i class="fas fa-cog text-purple-500"></i>
+                    </div>
+                    <div class="space-y-1">
+                        <div class="flex items-center text-sm">
+                            <i :class="status.frps_config_exists ? 'text-green-400 fa-check-circle' : 'text-red-400 fa-times-circle'" 
+                               class="fas mr-2"></i>
+                            <span>frps.toml</span>
+                        </div>
+                        <div class="flex items-center text-sm">
+                            <i :class="status.frpc_config_exists ? 'text-green-400 fa-check-circle' : 'text-red-400 fa-times-circle'" 
+                               class="fas mr-2"></i>
+                            <span>frpc.toml</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 标签页 -->
+            <div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+                <div class="flex border-b border-gray-700">
+                    <button v-for="tab in tabs" :key="tab.id"
+                            @click="activeTab = tab.id"
+                            :class="activeTab === tab.id ? 'bg-gray-700 text-white border-b-2 border-blue-500' : 'text-gray-400 hover:text-white hover:bg-gray-750'"
+                            class="px-6 py-4 font-medium transition">
+                        <i :class="tab.icon" class="mr-2"></i>
+                        {{ tab.name }}
+                    </button>
+                </div>
+
+                <div class="p-6">
+                    <!-- 代理管理 -->
+                    <div v-show="activeTab === 'proxies'">
+                        <div class="flex justify-between items-center mb-6">
+                            <h2 class="text-xl font-bold">代理列表</h2>
+                            <button @click="showAddProxy = true" 
+                                    class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition">
+                                <i class="fas fa-plus mr-2"></i>添加代理
+                            </button>
+                        </div>
+
+                        <div v-if="proxies.length === 0" class="text-center py-12 text-gray-500">
+                            <i class="fas fa-inbox text-4xl mb-4"></i>
+                            <p>暂无代理配置</p>
+                            <p class="text-sm mt-2">点击"添加代理"创建第一个代理规则</p>
+                        </div>
+
+                        <div v-else class="overflow-x-auto">
+                            <table class="w-full">
+                                <thead>
+                                    <tr class="text-left text-gray-400 text-sm border-b border-gray-700">
+                                        <th class="pb-3 font-medium">名称</th>
+                                        <th class="pb-3 font-medium">类型</th>
+                                        <th class="pb-3 font-medium">本地地址</th>
+                                        <th class="pb-3 font-medium">远程端口/域名</th>
+                                        <th class="pb-3 font-medium text-right">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="proxy in proxies" :key="proxy.name" 
+                                        class="border-b border-gray-700 hover:bg-gray-750 transition">
+                                        <td class="py-4">
+                                            <span class="font-medium">{{ proxy.name }}</span>
+                                        </td>
+                                        <td class="py-4">
+                                            <span :class="getTypeColor(proxy.type)" 
+                                                  class="px-2 py-1 rounded text-xs font-medium uppercase">
+                                                {{ proxy.type }}
+                                            </span>
+                                        </td>
+                                        <td class="py-4 text-gray-400">
+                                            {{ proxy.localIP || '127.0.0.1' }}:{{ proxy.localPort }}
+                                        </td>
+                                        <td class="py-4 text-gray-400">
+                                            <span v-if="proxy.remotePort">:{{ proxy.remotePort }}</span>
+                                            <span v-else-if="proxy.customDomains">{{ proxy.customDomains.join(', ') }}</span>
+                                            <span v-else-if="proxy.subdomain">{{ proxy.subdomain }}</span>
+                                            <span v-else>-</span>
+                                        </td>
+                                        <td class="py-4 text-right">
+                                            <button @click="editProxy(proxy)" 
+                                                    class="px-3 py-1 text-blue-400 hover:text-blue-300 transition">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button @click="deleteProxy(proxy.name)" 
+                                                    class="px-3 py-1 text-red-400 hover:text-red-300 transition">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- 服务端配置 -->
+                    <div v-show="activeTab === 'server'">
+                        <h2 class="text-xl font-bold mb-6">服务端配置</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl">
+                            <div>
+                                <label class="block text-gray-400 text-sm mb-2">绑定端口</label>
+                                <input v-model.number="serverConfig.bindPort" type="number" 
+                                       class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-gray-400 text-sm mb-2">Dashboard 端口</label>
+                                <input v-model.number="serverConfig.dashboardPort" type="number" 
+                                       class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-gray-400 text-sm mb-2">Dashboard 用户名</label>
+                                <input v-model="serverConfig.dashboardUser" type="text" 
+                                       class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-gray-400 text-sm mb-2">Dashboard 密码</label>
+                                <input v-model="serverConfig.dashboardPwd" type="password" 
+                                       class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500">
+                            </div>
+                            <div class="md:col-span-2">
+                                <label class="block text-gray-400 text-sm mb-2">认证 Token</label>
+                                <input v-model="serverConfig.token" type="text" 
+                                       class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500">
+                            </div>
+                        </div>
+                        <div class="mt-6">
+                            <button @click="saveServerConfig" 
+                                    class="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition">
+                                <i class="fas fa-save mr-2"></i>保存配置
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 客户端配置 -->
+                    <div v-show="activeTab === 'client'">
+                        <h2 class="text-xl font-bold mb-6">客户端配置</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl">
+                            <div>
+                                <label class="block text-gray-400 text-sm mb-2">服务器地址</label>
+                                <input v-model="clientConfig.serverAddr" type="text" 
+                                       class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-gray-400 text-sm mb-2">服务器端口</label>
+                                <input v-model.number="clientConfig.serverPort" type="number" 
+                                       class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500">
+                            </div>
+                            <div class="md:col-span-2">
+                                <label class="block text-gray-400 text-sm mb-2">认证 Token</label>
+                                <input v-model="clientConfig.token" type="text" 
+                                       class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500">
+                            </div>
+                        </div>
+                        <div class="mt-6">
+                            <button @click="saveClientConfig" 
+                                    class="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition">
+                                <i class="fas fa-save mr-2"></i>保存配置
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 日志 -->
+                    <div v-show="activeTab === 'logs'">
+                        <div class="flex justify-between items-center mb-6">
+                            <h2 class="text-xl font-bold">服务日志</h2>
+                            <div class="space-x-2">
+                                <button @click="loadLogs('frps')" 
+                                        :class="logType === 'frps' ? 'bg-blue-600' : 'bg-gray-700'"
+                                        class="px-4 py-2 rounded-lg transition">
+                                    服务端日志
+                                </button>
+                                <button @click="loadLogs('frpc')" 
+                                        :class="logType === 'frpc' ? 'bg-blue-600' : 'bg-gray-700'"
+                                        class="px-4 py-2 rounded-lg transition">
+                                    客户端日志
+                                </button>
+                            </div>
+                        </div>
+                        <div class="bg-gray-900 rounded-lg p-4 font-mono text-sm h-96 overflow-auto">
+                            <div v-for="(log, index) in logs" :key="index" class="text-gray-300 leading-relaxed">
+                                {{ log }}
+                            </div>
+                            <div v-if="logs.length === 0" class="text-gray-500 text-center py-8">
+                                暂无日志
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 添加/编辑代理模态框 -->
+        <div v-if="showAddProxy" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-gray-800 rounded-xl p-6 w-full max-w-md mx-4 border border-gray-700">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-xl font-bold">{{ editingProxy ? '编辑代理' : '添加代理' }}</h3>
+                    <button @click="closeProxyModal" class="text-gray-400 hover:text-white">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-gray-400 text-sm mb-2">代理名称</label>
+                        <input v-model="proxyForm.name" type="text" placeholder="my-proxy"
+                               :disabled="editingProxy"
+                               class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500 disabled:opacity-50">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-gray-400 text-sm mb-2">代理类型</label>
+                        <select v-model="proxyForm.type" 
+                                class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500">
+                            <option value="tcp">TCP</option>
+                            <option value="udp">UDP</option>
+                            <option value="http">HTTP</option>
+                            <option value="https">HTTPS</option>
+                        </select>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-gray-400 text-sm mb-2">本地 IP</label>
+                            <input v-model="proxyForm.local_ip" type="text" placeholder="127.0.0.1"
+                                   class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-gray-400 text-sm mb-2">本地端口</label>
+                            <input v-model.number="proxyForm.local_port" type="number" placeholder="22"
+                                   class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500">
+                        </div>
+                    </div>
+                    
+                    <div v-if="proxyForm.type === 'tcp' || proxyForm.type === 'udp'">
+                        <label class="block text-gray-400 text-sm mb-2">远程端口</label>
+                        <input v-model.number="proxyForm.remote_port" type="number" placeholder="6000"
+                               class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500">
+                    </div>
+                    
+                    <div v-if="proxyForm.type === 'http' || proxyForm.type === 'https'">
+                        <label class="block text-gray-400 text-sm mb-2">自定义域名 (逗号分隔)</label>
+                        <input v-model="proxyForm.custom_domains_str" type="text" placeholder="www.example.com"
+                               class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500">
+                    </div>
+                </div>
+                
+                <div class="flex justify-end space-x-3 mt-6">
+                    <button @click="closeProxyModal" 
+                            class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition">
+                        取消
+                    </button>
+                    <button @click="saveProxy" 
+                            class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition">
+                        {{ editingProxy ? '更新' : '创建' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast 通知 -->
+        <div class="fixed bottom-4 right-4 space-y-2">
+            <transition-group name="slide">
+                <div v-for="toast in toasts" :key="toast.id"
+                     :class="toast.type === 'success' ? 'bg-green-600' : toast.type === 'error' ? 'bg-red-600' : 'bg-blue-600'"
+                     class="px-4 py-3 rounded-lg shadow-lg flex items-center space-x-3">
+                    <i :class="toast.type === 'success' ? 'fa-check-circle' : toast.type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'"
+                       class="fas"></i>
+                    <span>{{ toast.message }}</span>
+                </div>
+            </transition-group>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, reactive, onMounted, computed } = Vue;
+
+        createApp({
+            setup() {
+                // 状态
+                const status = ref({});
+                const proxies = ref([]);
+                const logs = ref([]);
+                const logType = ref('frps');
+                const activeTab = ref('proxies');
+                const showAddProxy = ref(false);
+                const editingProxy = ref(null);
+                const toasts = ref([]);
+
+                // 配置
+                const serverConfig = reactive({
+                    bindPort: 7000,
+                    dashboardPort: 7500,
+                    dashboardUser: 'admin',
+                    dashboardPwd: '',
+                    token: ''
+                });
+
+                const clientConfig = reactive({
+                    serverAddr: '',
+                    serverPort: 7000,
+                    token: ''
+                });
+
+                const proxyForm = reactive({
+                    name: '',
+                    type: 'tcp',
+                    local_ip: '127.0.0.1',
+                    local_port: null,
+                    remote_port: null,
+                    custom_domains_str: ''
+                });
+
+                // 标签页
+                const tabs = [
+                    { id: 'proxies', name: '代理管理', icon: 'fas fa-exchange-alt' },
+                    { id: 'server', name: '服务端配置', icon: 'fas fa-server' },
+                    { id: 'client', name: '客户端配置', icon: 'fas fa-laptop' },
+                    { id: 'logs', name: '日志', icon: 'fas fa-file-alt' }
+                ];
+
+                // Toast 通知
+                const showToast = (message, type = 'info') => {
+                    const id = Date.now();
+                    toasts.value.push({ id, message, type });
+                    setTimeout(() => {
+                        toasts.value = toasts.value.filter(t => t.id !== id);
+                    }, 3000);
+                };
+
+                // API 调用
+                const api = async (url, options = {}) => {
+                    try {
+                        const response = await fetch(`/api${url}`, {
+                            headers: { 'Content-Type': 'application/json' },
+                            ...options
+                        });
+                        if (!response.ok) {
+                            const error = await response.json();
+                            throw new Error(error.detail || '请求失败');
+                        }
+                        return await response.json();
+                    } catch (error) {
+                        showToast(error.message, 'error');
+                        throw error;
+                    }
+                };
+
+                // 加载状态
+                const loadStatus = async () => {
+                    try {
+                        status.value = await api('/status');
+                    } catch (e) {}
+                };
+
+                // 加载代理列表
+                const loadProxies = async () => {
+                    try {
+                        const data = await api('/proxies');
+                        proxies.value = data.proxies || [];
+                    } catch (e) {}
+                };
+
+                // 加载服务端配置
+                const loadServerConfig = async () => {
+                    try {
+                        const config = await api('/server/config');
+                        serverConfig.bindPort = config.bindPort || 7000;
+                        if (config.webServer) {
+                            serverConfig.dashboardPort = config.webServer.port || 7500;
+                            serverConfig.dashboardUser = config.webServer.user || 'admin';
+                            serverConfig.dashboardPwd = config.webServer.password || '';
+                        }
+                        if (config.auth) {
+                            serverConfig.token = config.auth.token || '';
+                        }
+                    } catch (e) {}
+                };
+
+                // 加载客户端配置
+                const loadClientConfig = async () => {
+                    try {
+                        const config = await api('/client/config');
+                        clientConfig.serverAddr = config.serverAddr || '';
+                        clientConfig.serverPort = config.serverPort || 7000;
+                        if (config.auth) {
+                            clientConfig.token = config.auth.token || '';
+                        }
+                    } catch (e) {}
+                };
+
+                // 加载日志
+                const loadLogs = async (type) => {
+                    logType.value = type;
+                    try {
+                        const data = await api(`/logs/${type}?lines=200`);
+                        logs.value = data.logs || [];
+                    } catch (e) {}
+                };
+
+                // 控制服务
+                const controlService = async (service, action) => {
+                    try {
+                        await api(`/service/${service}/${action}`, { method: 'POST' });
+                        showToast(`${service} ${action === 'start' ? '已启动' : action === 'stop' ? '已停止' : '已重启'}`, 'success');
+                        setTimeout(loadStatus, 1000);
+                    } catch (e) {}
+                };
+
+                // 保存服务端配置
+                const saveServerConfig = async () => {
+                    try {
+                        await api('/server/config', {
+                            method: 'PUT',
+                            body: JSON.stringify({
+                                bind_port: serverConfig.bindPort,
+                                dashboard_port: serverConfig.dashboardPort,
+                                dashboard_user: serverConfig.dashboardUser,
+                                dashboard_pwd: serverConfig.dashboardPwd,
+                                token: serverConfig.token
+                            })
+                        });
+                        showToast('服务端配置已保存', 'success');
+                    } catch (e) {}
+                };
+
+                // 保存客户端配置
+                const saveClientConfig = async () => {
+                    try {
+                        await api('/client/config', {
+                            method: 'PUT',
+                            body: JSON.stringify({
+                                server_addr: clientConfig.serverAddr,
+                                server_port: clientConfig.serverPort,
+                                token: clientConfig.token
+                            })
+                        });
+                        showToast('客户端配置已保存', 'success');
+                    } catch (e) {}
+                };
+
+                // 代理类型颜色
+                const getTypeColor = (type) => {
+                    const colors = {
+                        tcp: 'bg-blue-600',
+                        udp: 'bg-green-600',
+                        http: 'bg-yellow-600',
+                        https: 'bg-purple-600'
+                    };
+                    return colors[type] || 'bg-gray-600';
+                };
+
+                // 编辑代理
+                const editProxy = (proxy) => {
+                    editingProxy.value = proxy.name;
+                    proxyForm.name = proxy.name;
+                    proxyForm.type = proxy.type;
+                    proxyForm.local_ip = proxy.localIP || '127.0.0.1';
+                    proxyForm.local_port = proxy.localPort;
+                    proxyForm.remote_port = proxy.remotePort;
+                    proxyForm.custom_domains_str = (proxy.customDomains || []).join(', ');
+                    showAddProxy.value = true;
+                };
+
+                // 关闭代理模态框
+                const closeProxyModal = () => {
+                    showAddProxy.value = false;
+                    editingProxy.value = null;
+                    proxyForm.name = '';
+                    proxyForm.type = 'tcp';
+                    proxyForm.local_ip = '127.0.0.1';
+                    proxyForm.local_port = null;
+                    proxyForm.remote_port = null;
+                    proxyForm.custom_domains_str = '';
+                };
+
+                // 保存代理
+                const saveProxy = async () => {
+                    const data = {
+                        name: proxyForm.name,
+                        type: proxyForm.type,
+                        local_ip: proxyForm.local_ip,
+                        local_port: proxyForm.local_port,
+                        remote_port: proxyForm.remote_port,
+                        custom_domains: proxyForm.custom_domains_str ? proxyForm.custom_domains_str.split(',').map(s => s.trim()) : null
+                    };
+
+                    try {
+                        if (editingProxy.value) {
+                            await api(`/proxies/${editingProxy.value}`, {
+                                method: 'PUT',
+                                body: JSON.stringify(data)
+                            });
+                            showToast('代理已更新', 'success');
+                        } else {
+                            await api('/proxies', {
+                                method: 'POST',
+                                body: JSON.stringify(data)
+                            });
+                            showToast('代理已创建', 'success');
+                        }
+                        closeProxyModal();
+                        loadProxies();
+                    } catch (e) {}
+                };
+
+                // 删除代理
+                const deleteProxy = async (name) => {
+                    if (!confirm(`确定要删除代理 "${name}" 吗？`)) return;
+                    try {
+                        await api(`/proxies/${name}`, { method: 'DELETE' });
+                        showToast('代理已删除', 'success');
+                        loadProxies();
+                    } catch (e) {}
+                };
+
+                // 初始化
+                onMounted(() => {
+                    loadStatus();
+                    loadProxies();
+                    loadServerConfig();
+                    loadClientConfig();
+                    loadLogs('frps');
+
+                    // 定时刷新状态
+                    setInterval(loadStatus, 5000);
+                });
+
+                return {
+                    status,
+                    proxies,
+                    logs,
+                    logType,
+                    activeTab,
+                    showAddProxy,
+                    editingProxy,
+                    toasts,
+                    serverConfig,
+                    clientConfig,
+                    proxyForm,
+                    tabs,
+                    loadStatus,
+                    loadProxies,
+                    loadLogs,
+                    controlService,
+                    saveServerConfig,
+                    saveClientConfig,
+                    getTypeColor,
+                    editProxy,
+                    closeProxyModal,
+                    saveProxy,
+                    deleteProxy
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

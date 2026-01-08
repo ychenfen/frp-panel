@@ -1,0 +1,66 @@
+# ============================================
+# FRP Panel Docker Compose 配置
+# ============================================
+# 
+# 使用方法:
+#   1. 服务端部署: docker compose up -d frp-server
+#   2. 客户端部署: docker compose up -d frp-client
+#   3. 完整部署:   docker compose up -d
+#
+# ============================================
+
+version: '3.8'
+
+services:
+  # FRP 服务端 + 管理面板
+  frp-server:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: frp-panel:latest
+    container_name: frp-panel-server
+    restart: unless-stopped
+    environment:
+      - FRP_MODE=server
+      - FRPS_BIND_PORT=7000
+      - FRPS_DASHBOARD_PORT=7500
+      - FRPS_DASHBOARD_USER=admin
+      - FRPS_DASHBOARD_PWD=admin123
+      - FRPS_TOKEN=your_secure_token_here
+    ports:
+      - "7000:7000"      # FRP 服务端口
+      - "7500:7500"      # FRP Dashboard
+      - "8000:8000"      # Web 管理面板
+      - "6000-6100:6000-6100"  # TCP 代理端口范围
+    volumes:
+      - frp-server-data:/opt/frp
+    networks:
+      - frp-network
+
+  # FRP 客户端 (可选，用于测试)
+  frp-client:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: frp-panel:latest
+    container_name: frp-panel-client
+    restart: unless-stopped
+    environment:
+      - FRP_MODE=client
+      - FRPC_SERVER_ADDR=frp-server
+      - FRPC_SERVER_PORT=7000
+      - FRPC_TOKEN=your_secure_token_here
+    volumes:
+      - frp-client-data:/opt/frp
+    networks:
+      - frp-network
+    depends_on:
+      - frp-server
+
+volumes:
+  frp-server-data:
+  frp-client-data:
+
+networks:
+  frp-network:
+    driver: bridge
